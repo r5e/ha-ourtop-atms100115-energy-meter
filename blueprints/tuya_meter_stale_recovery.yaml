@@ -1,0 +1,136 @@
+blueprint:
+  name: Tuya Local energy meter stale data recovery
+  description: >
+    Watches a meter sensor that changes on every reading. If it stops changing
+    (or goes unavailable),
+    reloads the meter's Tuya Local entry. If that doesn't bring fresh readings
+    back, raises a persistent notification (and optionally runs your own
+    notification action), then dismisses it once readings return.
+
+    **Which sensor:** the meter's **Supply voltage** sensor is recommended. It is
+    measured from the meter's own mains connection, whatever is clipped where,
+    and changes by a fraction of a volt on practically every reading. A channel
+    power sensor also works, but only if that channel always carries a load:
+    a circuit that sits at 0 W (an idle oven, air conditioner off) never
+    changes and would be treated as stale. Don't use the meter's own total
+    power sensor: it is included in Tuya Local's status polls, so after a
+    reload it gets its old value back straight away and looks fresh when it
+    isn't.
+
+
+    **Timings:** set "stale after" to about 2.5 times your refresh automation's
+    standard interval, so that two missed refreshes never trigger a reload. The
+    defaults (5 + 2 + 5 minutes) suit a 1- or 2-minute standard interval. Keep
+    "stale after" plus "hold" under the meter's own unprompted report interval
+    (15 minutes on the Ourtop ATMS100115), or those reports can hide a stopped
+    refresh; with a 5- or 10-minute standard interval this is no longer
+    possible, and the alert will only catch a meter or connection that has
+    stopped completely.
+  domain: automation
+  author: r5e
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    power_sensor:
+      name: Sensor to watch
+      description: >
+        A Tuya Local sensor that changes on every reading. Supply voltage
+        is recommended.
+      selector:
+        entity:
+          filter:
+            - domain: sensor
+              integration: tuya_local
+              device_class:
+                - voltage
+                - power
+    stale_minutes:
+      name: Stale after
+      description: Minutes without a change before readings count as stale.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 30
+          unit_of_measurement: min
+          mode: box
+    hold_minutes:
+      name: Hold
+      description: Minutes the stale condition must last before reloading.
+      default: 2
+      selector:
+        number:
+          min: 0
+          max: 30
+          unit_of_measurement: min
+          mode: box
+    recheck_minutes:
+      name: Recheck after reload
+      description: Minutes to wait after the reload before alerting.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 30
+          unit_of_measurement: min
+          mode: box
+    extra_notification:
+      name: Extra notification (optional)
+      description: >
+        Any actions to run when alerting, for example a notification to your
+        phone. The variable {{ message }} holds the alert text.
+      default: []
+      selector:
+        action: {}
+
+mode: single
+max_exceeded: silent
+
+trigger_variables:
+  power_entity: !input power_sensor
+  stale_minutes: !input stale_minutes
+
+variables:
+  hold_minutes: !input hold_minutes
+  recheck_minutes: !input recheck_minutes
+  notification_id: "{{ 'tuya_meter_stale_' ~ power_entity }}"
+  message: >
+    No fresh readings from {{ state_attr(power_entity, 'friendly_name') or power_entity }}
+    for at least {{ (stale_minutes | int) + (hold_minutes | int) + (recheck_minutes | int) }}
+    minutes, and a Tuya Local reload didn't fix it. Check the refresh
+    automation is on, then the meter's Wi-Fi; it may need a power cycle.
+
+triggers:
+  - trigger: template
+    value_template: &stale >
+      {% set s = expand(power_entity) | first | default(none) %}
+      {{ s is none or s.state in ['unavailable', 'unknown']
+         or (now() - s.last_changed) > timedelta(minutes=stale_minutes | int) }}
+    for:
+      minutes: !input hold_minutes
+
+actions:
+  - action: homeassistant.reload_config_entry
+    target:
+      entity_id: !input power_sensor
+  - delay:
+      minutes: !input recheck_minutes
+  - condition: template
+    value_template: *stale
+  - action: persistent_notification.create
+    data:
+      notification_id: "{{ notification_id }}"
+      title: Energy meter not updating
+      message: "{{ message }}"
+  - choose: []
+    default: !input extra_notification
+  # Wait for fresh readings (up to a day), then clear the alert.
+  - wait_template: >
+      {% set s = expand(power_entity) | first | default(none) %}
+      {{ s is not none and s.state not in ['unavailable', 'unknown']
+         and (now() - s.last_changed) < timedelta(minutes=stale_minutes | int) }}
+    timeout: "24:00:00"
+    continue_on_timeout: false
+  - action: persistent_notification.dismiss
+    data:
+      notification_id: "{{ notification_id }}"

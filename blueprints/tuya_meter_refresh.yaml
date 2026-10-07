@@ -1,0 +1,114 @@
+blueprint:
+  name: Tuya Local energy meter refresh
+  description: >
+    Keeps a Tuya energy meter's live readings fresh by writing "online" to its
+    refresh datapoint (DP 35) on a fixed interval. Some Tuya meters, such as the
+    Ourtop ATMS100115 5-channel meter, only send new readings when asked (normally by the
+    vendor app); Tuya Local's own polling returns stale values.
+
+
+    **Standard interval** is used day to day. 1 minute is recommended.
+
+
+    **High-res mode (optional):** create a Timer helper (Settings > Helpers >
+    Create helper > Timer), set its duration (e.g. 1 hour) and tick "Restore",
+    then select it below. While the timer is running, the high-res interval is
+    used; when it finishes, the standard interval resumes automatically. Start
+    it from a dashboard tile or the timer's dialog.
+
+
+    Shorter intervals store more rows in the recorder database, which is why
+    high-res mode is time-limited. Writes are aligned to the clock (for example
+    :00 and :30 for 30 seconds).
+  domain: automation
+  author: r5e
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    refresh_entity:
+      name: Refresh entity
+      description: The meter's Refresh select entity, provided by Tuya Local.
+      selector:
+        entity:
+          filter:
+            - domain: select
+              integration: tuya_local
+    interval:
+      name: Standard interval
+      description: How often to ask the meter for new readings, day to day.
+      default: "60"
+      selector:
+        select:
+          options:
+            - label: 1 minute
+              value: "60"
+            - label: 2 minutes
+              value: "120"
+            - label: 5 minutes
+              value: "300"
+            - label: 10 minutes
+              value: "600"
+    high_res_timer:
+      name: High-res timer (optional)
+      description: >
+        A Timer helper. While it is running, the high-res interval is used.
+        Leave empty to always use the standard interval.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - domain: timer
+    high_res_interval:
+      name: High-res interval
+      description: Interval used while the high-res timer is running.
+      default: "30"
+      selector:
+        select:
+          options:
+            - label: 15 seconds
+              value: "15"
+            - label: 30 seconds
+              value: "30"
+
+mode: single
+max_exceeded: silent
+
+variables:
+  refresh_entity: !input refresh_entity
+  standard_interval: !input interval
+  high_res_timer: !input high_res_timer
+  high_res_interval: !input high_res_interval
+  active_interval: >
+    {{ (high_res_interval if high_res_timer and is_state(high_res_timer, 'active')
+        else standard_interval) | int }}
+
+triggers:
+  # A 5-second tick; the condition below lets through only the ticks that
+  # fall on the active interval, because time_pattern can't take an input.
+  # The tick also picks up the timer starting or finishing, so no extra
+  # trigger is needed for it.
+  - trigger: time_pattern
+    seconds: "/5"
+    id: tick
+  - trigger: homeassistant
+    event: start
+    id: start
+  - trigger: state
+    entity_id: !input refresh_entity
+    from: unavailable
+    id: recovered
+
+conditions:
+  - condition: template
+    value_template: "{{ not is_state(refresh_entity, 'unavailable') }}"
+  - condition: template
+    value_template: >
+      {% set secs = now().minute * 60 + now().second %}
+      {{ trigger.id != 'tick' or secs % active_interval < 5 }}
+
+actions:
+  - action: select.select_option
+    target:
+      entity_id: !input refresh_entity
+    data:
+      option: online

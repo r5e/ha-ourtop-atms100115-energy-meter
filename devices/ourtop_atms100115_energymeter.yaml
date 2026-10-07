@@ -1,0 +1,417 @@
+name: 5-channel energy meter
+# Ourtop ATMS100115 (Tuya cloud: "WiFi Smart Meter 5 CT", ATMS1001315):
+# single-phase, 5 bidirectional CT channels (0-100 A).
+# Readings only update when DP 35 is set to "online" (one report per write);
+# see the refresh blueprint in the project README.
+# Raw DPs 101-105 (10 bytes, big-endian):
+#   0-1 voltage (0.1 V), 2-4 current (mA), 5-7 active power (W),
+#   8 power factor (%), 9 direction flag (1 = exporting; random when current is ~0).
+products:
+  - id: eedoqrlzlhrgkqnu
+    manufacturer: Ourtop
+    model: ATMS100115
+entities:
+  - entity: sensor
+    translation_key: energy_consumed
+    class: energy
+    dps:
+      - id: 1
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    translation_key: energy_produced
+    class: energy
+    dps:
+      - id: 23
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    class: energy
+    dps:
+      - id: 24
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    class: power
+    dps:
+      - id: 29
+        type: integer
+        name: sensor
+        unit: kW
+        class: measurement
+        mapping:
+          - scale: 1000
+  - entity: sensor
+    class: reactive_power
+    dps:
+      - id: 30
+        type: integer
+        name: sensor
+        unit: kvar
+        class: measurement
+        mapping:
+          - scale: 1000
+  - entity: sensor
+    class: power_factor
+    dps:
+      - id: 50
+        type: integer
+        name: sensor
+        class: measurement
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Supply voltage
+    class: voltage
+    category: diagnostic
+    dps:
+      - id: 101
+        type: base64
+        optional: true
+        mask: "FFFF0000000000000000"
+        name: sensor
+        unit: V
+        class: measurement
+        mapping:
+          - scale: 10
+  - entity: sensor
+    name: Channel 1 energy consumed
+    class: energy
+    dps:
+      - id: 53
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 1 energy produced
+    class: energy
+    dps:
+      - id: 108
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 1 power
+    class: power
+    dps:
+      - id: 101
+        type: base64
+        optional: true
+        mask: "0000000000FFFFFF0000"
+        name: sensor
+        unit: W
+        class: measurement
+        mapping:
+          - scale: 1
+  - entity: sensor
+    name: Channel 1 current
+    class: current
+    category: diagnostic
+    dps:
+      - id: 101
+        type: base64
+        optional: true
+        mask: "0000FFFFFF0000000000"
+        name: sensor
+        unit: A
+        class: measurement
+        mapping:
+          - scale: 1000
+  - entity: sensor
+    name: Channel 2 energy consumed
+    class: energy
+    dps:
+      - id: 54
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 2 energy produced
+    class: energy
+    dps:
+      - id: 109
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 2 power
+    class: power
+    dps:
+      - id: 102
+        type: base64
+        optional: true
+        mask: "0000000000FFFFFF0000"
+        name: sensor
+        unit: W
+        class: measurement
+        mapping:
+          - scale: 1
+  - entity: sensor
+    name: Channel 2 current
+    class: current
+    category: diagnostic
+    dps:
+      - id: 102
+        type: base64
+        optional: true
+        mask: "0000FFFFFF0000000000"
+        name: sensor
+        unit: A
+        class: measurement
+        mapping:
+          - scale: 1000
+  - entity: sensor
+    name: Channel 3 energy consumed
+    class: energy
+    dps:
+      - id: 55
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 3 energy produced
+    class: energy
+    dps:
+      - id: 110
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 3 power
+    class: power
+    dps:
+      - id: 103
+        type: base64
+        optional: true
+        mask: "0000000000FFFFFF0000"
+        name: sensor
+        unit: W
+        class: measurement
+        mapping:
+          - scale: 1
+  - entity: sensor
+    name: Channel 3 current
+    class: current
+    category: diagnostic
+    dps:
+      - id: 103
+        type: base64
+        optional: true
+        mask: "0000FFFFFF0000000000"
+        name: sensor
+        unit: A
+        class: measurement
+        mapping:
+          - scale: 1000
+  - entity: sensor
+    name: Channel 4 energy consumed
+    class: energy
+    dps:
+      - id: 106
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 4 energy produced
+    class: energy
+    dps:
+      - id: 111
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 4 power
+    class: power
+    dps:
+      - id: 104
+        type: base64
+        optional: true
+        mask: "0000000000FFFFFF0000"
+        name: sensor
+        unit: W
+        class: measurement
+        mapping:
+          - scale: 1
+  - entity: sensor
+    name: Channel 4 current
+    class: current
+    category: diagnostic
+    dps:
+      - id: 104
+        type: base64
+        optional: true
+        mask: "0000FFFFFF0000000000"
+        name: sensor
+        unit: A
+        class: measurement
+        mapping:
+          - scale: 1000
+  - entity: sensor
+    name: Channel 5 energy consumed
+    class: energy
+    dps:
+      - id: 107
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 5 energy produced
+    class: energy
+    dps:
+      - id: 112
+        type: integer
+        name: sensor
+        unit: kWh
+        class: total_increasing
+        mapping:
+          - scale: 100
+  - entity: sensor
+    name: Channel 5 power
+    class: power
+    dps:
+      - id: 105
+        type: base64
+        optional: true
+        mask: "0000000000FFFFFF0000"
+        name: sensor
+        unit: W
+        class: measurement
+        mapping:
+          - scale: 1
+  - entity: sensor
+    name: Channel 5 current
+    class: current
+    category: diagnostic
+    dps:
+      - id: 105
+        type: base64
+        optional: true
+        mask: "0000FFFFFF0000000000"
+        name: sensor
+        unit: A
+        class: measurement
+        mapping:
+          - scale: 1000
+  - entity: select
+    name: Refresh
+    category: config
+    dps:
+      - id: 35
+        type: string
+        optional: true
+        name: option
+        mapping:
+          - dps_val: online
+            value: online
+          - dps_val: offline
+            value: online
+            hidden: true
+  - entity: binary_sensor
+    name: Channel 1 export
+    category: diagnostic
+    dps:
+      - id: 101
+        type: base64
+        optional: true
+        mask: "000000000000000000FF"
+        name: sensor
+        mapping:
+          - dps_val: 1
+            value: true
+          - dps_val: 0
+            value: false
+  - entity: binary_sensor
+    name: Channel 2 export
+    category: diagnostic
+    dps:
+      - id: 102
+        type: base64
+        optional: true
+        mask: "000000000000000000FF"
+        name: sensor
+        mapping:
+          - dps_val: 1
+            value: true
+          - dps_val: 0
+            value: false
+  - entity: binary_sensor
+    name: Channel 3 export
+    category: diagnostic
+    dps:
+      - id: 103
+        type: base64
+        optional: true
+        mask: "000000000000000000FF"
+        name: sensor
+        mapping:
+          - dps_val: 1
+            value: true
+          - dps_val: 0
+            value: false
+  - entity: binary_sensor
+    name: Channel 4 export
+    category: diagnostic
+    dps:
+      - id: 104
+        type: base64
+        optional: true
+        mask: "000000000000000000FF"
+        name: sensor
+        mapping:
+          - dps_val: 1
+            value: true
+          - dps_val: 0
+            value: false
+  - entity: binary_sensor
+    name: Channel 5 export
+    category: diagnostic
+    dps:
+      - id: 105
+        type: base64
+        optional: true
+        mask: "000000000000000000FF"
+        name: sensor
+        mapping:
+          - dps_val: 1
+            value: true
+          - dps_val: 0
+            value: false

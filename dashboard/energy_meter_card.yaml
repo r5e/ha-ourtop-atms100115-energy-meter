@@ -1,0 +1,163 @@
+# CT energy meter dashboard card
+# Paste via: Edit dashboard > Add card > Manual.
+# Entity IDs below assume the default device name "5-channel energy meter",
+# a timer helper named "Energy meter high-res" and the recipes' sensor names.
+# Check/adjust (search and replace):
+#   timer.energy_meter_high_res                   high-res timer helper
+#   binary_sensor.energy_meter_ping               Ping sensor (optional; hidden if absent)
+#   sensor.5_channel_energy_meter_supply_voltage  supply voltage (last reading)
+#   sensor.net_grid_power                         net grid power (recipe 1)
+#   sensor.5_channel_energy_meter_channel_N_power channel power sensors
+type: vertical-stack
+cards:
+  # High-res controls
+  - type: horizontal-stack
+    title: High-Res Power Meter Monitoring
+    cards:
+      - type: button
+        name: 30 min
+        icon: mdi:timer-sand
+        icon_height: 28px
+        tap_action:
+          action: perform-action
+          perform_action: timer.start
+          target:
+            entity_id: timer.energy_meter_high_res
+          data:
+            duration: "00:30:00"
+      - type: button
+        name: 1 hour
+        icon: mdi:timer-sand
+        icon_height: 28px
+        tap_action:
+          action: perform-action
+          perform_action: timer.start
+          target:
+            entity_id: timer.energy_meter_high_res
+          data:
+            duration: "01:00:00"
+      - type: button
+        name: 4 hours
+        icon: mdi:timer-sand
+        icon_height: 28px
+        tap_action:
+          action: perform-action
+          perform_action: timer.start
+          target:
+            entity_id: timer.energy_meter_high_res
+          data:
+            duration: "04:00:00"
+      - type: button
+        name: Stop
+        icon: mdi:timer-off-outline
+        icon_height: 28px
+        tap_action:
+          action: perform-action
+          perform_action: timer.cancel
+          target:
+            entity_id: timer.energy_meter_high_res
+
+  # Status: current mode, last reading, meter network
+  - type: markdown
+    content: >-
+      {% set timer = 'timer.energy_meter_high_res' %}
+      {% set power = 'sensor.5_channel_energy_meter_supply_voltage' %}
+      {% set ping = 'binary_sensor.energy_meter_ping' %}
+      {% set standard = '1 min' %}
+      {% set high_res = '15 s' %}
+      {% set p = expand(power) | first | default(none) %}
+      {% if is_state(timer, 'active') %}
+      ⚡ **High-res:** updating every {{ high_res }} until
+      {{ as_timestamp(state_attr(timer, 'finishes_at')) | timestamp_custom('%H:%M') }}
+      {% else %}
+      **Standard:** updating every {{ standard }}.
+      Tap a duration above for {{ high_res }} updates.
+      {% endif %}
+
+      {% if p is none or p.state in ['unavailable', 'unknown'] %}
+      ⚠️ No current reading
+      {% else %}
+      {% set age = (now() - p.last_changed).total_seconds() %}
+      Last reading {{ p.last_changed | as_local | as_timestamp | timestamp_custom('%H:%M:%S') }}
+      {%- if age > 120 %} (⚠️ {{ (age / 60) | int }} min ago){% endif %}
+      {% endif %}
+      {%- if has_value(ping) %}
+      · Meter network: {{ 'online' if is_state(ping, 'on') else '⚠️ offline' }}
+      {%- endif %}
+
+  # Live power
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: tile
+        entity: sensor.net_grid_power
+        name: Grid (import + / export −)
+      - type: tile
+        entity: sensor.5_channel_energy_meter_channel_2_power
+      - type: tile
+        entity: sensor.5_channel_energy_meter_channel_3_power
+      - type: tile
+        entity: sensor.5_channel_energy_meter_channel_4_power
+
+  # Recent history: the range follows the high-res button pressed
+  # (30 min or 4 hours); otherwise (standard mode, 1 hour, or any other
+  # timer duration) it shows the last hour.
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: timer.energy_meter_high_res
+        state: active
+      - condition: state
+        entity: timer.energy_meter_high_res
+        attribute: duration
+        state: "0:30:00"
+    card:
+      type: history-graph
+      title: Last 30 minutes
+      hours_to_show: 0.5
+      entities:
+        - entity: sensor.5_channel_energy_meter_channel_1_power
+        - entity: sensor.5_channel_energy_meter_channel_2_power
+        - entity: sensor.5_channel_energy_meter_channel_3_power
+        - entity: sensor.5_channel_energy_meter_channel_4_power
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: timer.energy_meter_high_res
+        state: active
+      - condition: state
+        entity: timer.energy_meter_high_res
+        attribute: duration
+        state: "4:00:00"
+    card:
+      type: history-graph
+      title: Last 4 hours
+      hours_to_show: 4
+      entities:
+        - entity: sensor.5_channel_energy_meter_channel_1_power
+        - entity: sensor.5_channel_energy_meter_channel_2_power
+        - entity: sensor.5_channel_energy_meter_channel_3_power
+        - entity: sensor.5_channel_energy_meter_channel_4_power
+  - type: conditional
+    conditions:
+      - condition: or
+        conditions:
+          - condition: state
+            entity: timer.energy_meter_high_res
+            state_not: active
+          - condition: state
+            entity: timer.energy_meter_high_res
+            attribute: duration
+            state_not:
+              - "0:30:00"
+              - "4:00:00"
+    card:
+      type: history-graph
+      title: Last hour
+      hours_to_show: 1
+      entities:
+        - entity: sensor.5_channel_energy_meter_channel_1_power
+        - entity: sensor.5_channel_energy_meter_channel_2_power
+        - entity: sensor.5_channel_energy_meter_channel_3_power
+        - entity: sensor.5_channel_energy_meter_channel_4_power
