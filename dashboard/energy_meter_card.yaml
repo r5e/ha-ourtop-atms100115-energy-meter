@@ -92,7 +92,9 @@ cards:
     cards:
       - type: tile
         entity: sensor.net_grid_power
-        name: Grid (import + / export −)
+        name: Grid
+        color: blue
+        icon: mdi:transmission-tower
       - type: tile
         entity: sensor.5_channel_energy_meter_channel_2_power
       - type: tile
@@ -102,7 +104,8 @@ cards:
 
   # Recent history: the range follows the high-res button pressed
   # (30 min or 4 hours); otherwise (standard mode, 1 hour, or any other
-  # timer duration) it shows the last hour.
+  # timer duration) it shows the last hour. The grid line is net grid power
+  # (import +, export -), not the raw grid channel, which is unsigned.
   - type: conditional
     conditions:
       - condition: state
@@ -117,10 +120,14 @@ cards:
       title: Last 30 minutes
       hours_to_show: 0.5
       entities:
-        - entity: sensor.5_channel_energy_meter_channel_1_power
+        - entity: sensor.net_grid_power
+          color: "#1E88E5"
         - entity: sensor.5_channel_energy_meter_channel_2_power
+          color: "#00ACC1"
         - entity: sensor.5_channel_energy_meter_channel_3_power
+          color: "#E53935"
         - entity: sensor.5_channel_energy_meter_channel_4_power
+          color: "#43A047"
   - type: conditional
     conditions:
       - condition: state
@@ -135,10 +142,14 @@ cards:
       title: Last 4 hours
       hours_to_show: 4
       entities:
-        - entity: sensor.5_channel_energy_meter_channel_1_power
+        - entity: sensor.net_grid_power
+          color: "#1E88E5"
         - entity: sensor.5_channel_energy_meter_channel_2_power
+          color: "#00ACC1"
         - entity: sensor.5_channel_energy_meter_channel_3_power
+          color: "#E53935"
         - entity: sensor.5_channel_energy_meter_channel_4_power
+          color: "#43A047"
   - type: conditional
     conditions:
       - condition: or
@@ -157,7 +168,11 @@ cards:
       title: Last hour
       hours_to_show: 1
       entities:
-        - entity: sensor.5_channel_energy_meter_channel_1_power
+        - entity: sensor.net_grid_power
+          color: "#1E88E5"
         - entity: sensor.5_channel_energy_meter_channel_2_power
+          color: "#00ACC1"
         - entity: sensor.5_channel_energy_meter_channel_3_power
+          color: "#E53935"
         - entity: sensor.5_channel_energy_meter_channel_4_power
+          color: "#43A047"

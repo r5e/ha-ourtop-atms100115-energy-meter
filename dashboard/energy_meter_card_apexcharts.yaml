@@ -1,0 +1,492 @@
+# CT energy meter dashboard card: ApexCharts version (for solar users)
+# Needs the ApexCharts card from HACS (Frontend > search "ApexCharts").
+# Solar and house consumption are drawn as translucent areas with the
+# circuits as lines on top. Also needs recipe 4 (house consumption) and a
+# solar power sensor: replace sensor.solar_power with yours.
+# The chart span tile needs a Dropdown helper "Energy meter chart span"
+# with the options 1 h, 4 h, 12 h, 24 h (see the README).
+# Paste via: Edit dashboard > Add card > Manual.
+# Entity IDs below assume the default device name "5-channel energy meter",
+# a timer helper named "Energy meter high-res" and the recipes' sensor names.
+# Check/adjust (search and replace):
+#   timer.energy_meter_high_res                   high-res timer helper
+#   binary_sensor.energy_meter_ping               Ping sensor (optional; hidden if absent)
+#   sensor.5_channel_energy_meter_supply_voltage  supply voltage (last reading)
+#   sensor.net_grid_power                         net grid power (recipe 1)
+#   sensor.5_channel_energy_meter_channel_N_power channel power sensors
+type: vertical-stack
+cards:
+  # High-res controls
+  - type: horizontal-stack
+    title: High-Res Power Meter Monitoring
+    cards:
+      - type: button
+        name: 30 min
+        icon: mdi:timer-sand
+        icon_height: 28px
+        tap_action:
+          action: perform-action
+          perform_action: timer.start
+          target:
+            entity_id: timer.energy_meter_high_res
+          data:
+            duration: "00:30:00"
+      - type: button
+        name: 1 hour
+        icon: mdi:timer-sand
+        icon_height: 28px
+        tap_action:
+          action: perform-action
+          perform_action: timer.start
+          target:
+            entity_id: timer.energy_meter_high_res
+          data:
+            duration: "01:00:00"
+      - type: button
+        name: 4 hours
+        icon: mdi:timer-sand
+        icon_height: 28px
+        tap_action:
+          action: perform-action
+          perform_action: timer.start
+          target:
+            entity_id: timer.energy_meter_high_res
+          data:
+            duration: "04:00:00"
+      - type: button
+        name: Stop
+        icon: mdi:timer-off-outline
+        icon_height: 28px
+        tap_action:
+          action: perform-action
+          perform_action: timer.cancel
+          target:
+            entity_id: timer.energy_meter_high_res
+
+  # Status: current mode, last reading, meter network
+  - type: markdown
+    content: >-
+      {% set timer = 'timer.energy_meter_high_res' %}
+      {% set power = 'sensor.5_channel_energy_meter_supply_voltage' %}
+      {% set ping = 'binary_sensor.energy_meter_ping' %}
+      {% set standard = '1 min' %}
+      {% set high_res = '15 s' %}
+      {% set p = expand(power) | first | default(none) %}
+      {% if is_state(timer, 'active') %}
+      ⚡ **High-res:** updating every {{ high_res }} until
+      {{ as_timestamp(state_attr(timer, 'finishes_at')) | timestamp_custom('%H:%M') }}
+      {% else %}
+      **Standard:** updating every {{ standard }}.
+      Tap a duration above for {{ high_res }} updates.
+      {% endif %}
+
+      {% if p is none or p.state in ['unavailable', 'unknown'] %}
+      ⚠️ No current reading
+      {% else %}
+      {% set age = (now() - p.last_changed).total_seconds() %}
+      Last reading {{ p.last_changed | as_local | as_timestamp | timestamp_custom('%H:%M:%S') }}
+      {%- if age > 120 %} (⚠️ {{ (age / 60) | int }} min ago){% endif %}
+      {% endif %}
+      {%- if has_value(ping) %}
+      · Meter network: {{ 'online' if is_state(ping, 'on') else '⚠️ offline' }}
+      {%- endif %}
+
+  # Live power
+  - type: grid
+    columns: 3
+    square: false
+    cards:
+      - type: tile
+        entity: sensor.solar_power
+        name: Solar
+        color: yellow
+        icon: mdi:solar-power-variant
+      - type: tile
+        entity: sensor.net_grid_power
+        name: Grid
+        color: blue
+        icon: mdi:transmission-tower
+      - type: tile
+        entity: sensor.house_consumption
+        name: House
+        color: purple
+        icon: mdi:home-lightning-bolt-outline
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: tile
+        entity: sensor.unmetered_load
+        name: Unmetered
+        icon: mdi:help-circle-outline
+      - type: tile
+        entity: sensor.5_channel_energy_meter_channel_2_power
+      - type: tile
+        entity: sensor.5_channel_energy_meter_channel_3_power
+      - type: tile
+        entity: sensor.5_channel_energy_meter_channel_4_power
+
+  # Chart span toggle: tap to cycle 1 h > 4 h > 12 h > 24 h.
+  # Needs a Dropdown helper "Energy meter chart span" with the options
+  # 1 h, 4 h, 12 h, 24 h (input_select.energy_meter_chart_span).
+  - type: tile
+    entity: input_select.energy_meter_chart_span
+    name: Chart span
+    icon: mdi:chart-timeline-variant
+    hide_state: false
+    tap_action:
+      action: perform-action
+      perform_action: input_select.select_next
+      target:
+        entity_id: input_select.energy_meter_chart_span
+
+  # History chart (ApexCharts card from HACS): solar and house consumption
+  # as translucent areas, circuits as lines on top. One chart per span;
+  # 1 h is also shown if the helper is missing or has another value.
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_select.energy_meter_chart_span
+        state_not:
+          - "4 h"
+          - "12 h"
+          - "24 h"
+    card:
+      type: custom:apexcharts-card
+      graph_span: 1h
+      header:
+        show: true
+        title: Last hour
+      apex_config:
+        chart:
+          height: 300
+        legend:
+          show: true
+        tooltip:
+          shared: true
+      yaxis:
+        - min: 0
+          decimals: 1
+          apex_config:
+            forceNiceScale: true
+      series:
+        - entity: sensor.solar_power
+          name: Solar
+          type: area
+          color: "#FFC83D"
+          opacity: 0.55
+          stroke_width: 1
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 30s
+        - entity: sensor.house_consumption
+          name: House
+          type: area
+          color: "#7E57C2"
+          opacity: 0.4
+          stroke_width: 1
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 30s
+        - entity: sensor.5_channel_energy_meter_channel_2_power
+          name: Channel 2
+          type: line
+          color: "#B0123A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 30s
+        - entity: sensor.5_channel_energy_meter_channel_3_power
+          name: Channel 3
+          type: line
+          color: "#E91E7A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 30s
+        - entity: sensor.5_channel_energy_meter_channel_4_power
+          name: Channel 4
+          type: line
+          color: "#12A06A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 30s
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_select.energy_meter_chart_span
+        state: "4 h"
+    card:
+      type: custom:apexcharts-card
+      graph_span: 4h
+      header:
+        show: true
+        title: Last 4 hours
+      apex_config:
+        chart:
+          height: 300
+        legend:
+          show: true
+        tooltip:
+          shared: true
+      yaxis:
+        - min: 0
+          decimals: 1
+          apex_config:
+            forceNiceScale: true
+      series:
+        - entity: sensor.solar_power
+          name: Solar
+          type: area
+          color: "#FFC83D"
+          opacity: 0.55
+          stroke_width: 1
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 2min
+        - entity: sensor.house_consumption
+          name: House
+          type: area
+          color: "#7E57C2"
+          opacity: 0.4
+          stroke_width: 1
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 2min
+        - entity: sensor.5_channel_energy_meter_channel_2_power
+          name: Channel 2
+          type: line
+          color: "#B0123A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 2min
+        - entity: sensor.5_channel_energy_meter_channel_3_power
+          name: Channel 3
+          type: line
+          color: "#E91E7A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 2min
+        - entity: sensor.5_channel_energy_meter_channel_4_power
+          name: Channel 4
+          type: line
+          color: "#12A06A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 2min
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_select.energy_meter_chart_span
+        state: "12 h"
+    card:
+      type: custom:apexcharts-card
+      graph_span: 12h
+      header:
+        show: true
+        title: Last 12 hours
+      apex_config:
+        chart:
+          height: 300
+        legend:
+          show: true
+        tooltip:
+          shared: true
+      yaxis:
+        - min: 0
+          decimals: 1
+          apex_config:
+            forceNiceScale: true
+      series:
+        - entity: sensor.solar_power
+          name: Solar
+          type: area
+          color: "#FFC83D"
+          opacity: 0.55
+          stroke_width: 1
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min
+        - entity: sensor.house_consumption
+          name: House
+          type: area
+          color: "#7E57C2"
+          opacity: 0.4
+          stroke_width: 1
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min
+        - entity: sensor.5_channel_energy_meter_channel_2_power
+          name: Channel 2
+          type: line
+          color: "#B0123A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min
+        - entity: sensor.5_channel_energy_meter_channel_3_power
+          name: Channel 3
+          type: line
+          color: "#E91E7A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min
+        - entity: sensor.5_channel_energy_meter_channel_4_power
+          name: Channel 4
+          type: line
+          color: "#12A06A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: input_select.energy_meter_chart_span
+        state: "24 h"
+    card:
+      type: custom:apexcharts-card
+      graph_span: 24h
+      header:
+        show: true
+        title: Last 24 hours
+      apex_config:
+        chart:
+          height: 300
+        legend:
+          show: true
+        tooltip:
+          shared: true
+      yaxis:
+        - min: 0
+          decimals: 1
+          apex_config:
+            forceNiceScale: true
+      series:
+        - entity: sensor.solar_power
+          name: Solar
+          type: area
+          color: "#FFC83D"
+          opacity: 0.55
+          stroke_width: 1
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min
+        - entity: sensor.house_consumption
+          name: House
+          type: area
+          color: "#7E57C2"
+          opacity: 0.4
+          stroke_width: 1
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min
+        - entity: sensor.5_channel_energy_meter_channel_2_power
+          name: Channel 2
+          type: line
+          color: "#B0123A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min
+        - entity: sensor.5_channel_energy_meter_channel_3_power
+          name: Channel 3
+          type: line
+          color: "#E91E7A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min
+        - entity: sensor.5_channel_energy_meter_channel_4_power
+          name: Channel 4
+          type: line
+          color: "#12A06A"
+          stroke_width: 2
+          curve: straight
+          transform: return Number(x) / 1000;
+          unit: kW
+          float_precision: 2
+          group_by:
+            func: avg
+            duration: 5min

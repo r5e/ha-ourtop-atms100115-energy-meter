@@ -1,0 +1,23 @@
+# Daily energy by channel for the Energy now view (built-in card).
+# Uses the meter's own counters. Rename the series to suit your circuits.
+type: statistics-graph
+title: Daily energy, last 7 days
+period: day
+days_to_show: 7
+chart_type: bar
+stat_types:
+  - change
+entities:
+  - entity: sensor.5_channel_energy_meter_channel_1_energy_consumed
+    name: Grid import (channel 1)
+  - entity: sensor.5_channel_energy_meter_channel_2_energy_consumed
+    name: Channel 2
+  - entity: sensor.5_channel_energy_meter_channel_3_energy_consumed
+    name: Channel 3
+  - entity: sensor.5_channel_energy_meter_channel_4_energy_consumed
+    name: Channel 4
+  # With solar, add these two so the bars add up (see the README):
+  # - entity: sensor.your_solar_total_energy
+  #   name: Solar generated
+  # - entity: sensor.5_channel_energy_meter_channel_1_energy_produced
+  #   name: Grid export

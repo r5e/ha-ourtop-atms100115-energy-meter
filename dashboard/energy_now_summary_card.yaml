@@ -1,0 +1,74 @@
+# Compact energy summary for your main dashboard view.
+# Tapping any tile opens the Energy now view (/lovelace/energy-now).
+type: vertical-stack
+cards:
+  - type: grid
+    columns: 3
+    square: false
+    cards:
+      - type: tile
+        entity: sensor.solar_power
+        name: Solar
+        color: yellow
+        icon: mdi:solar-power-variant
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/energy-now
+      - type: tile
+        entity: sensor.net_grid_power
+        name: Grid
+        color: blue
+        icon: mdi:transmission-tower
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/energy-now
+      - type: tile
+        entity: sensor.house_consumption
+        name: House
+        color: purple
+        icon: mdi:home-lightning-bolt-outline
+        tap_action:
+          action: navigate
+          navigation_path: /lovelace/energy-now
+  - type: custom:apexcharts-card
+    graph_span: 6h
+    header:
+      show: true
+      title: Energy, last 6 hours
+    apex_config:
+      chart:
+        height: 150
+      legend:
+        show: false
+    yaxis:
+      - min: 0
+        decimals: 1
+        apex_config:
+          forceNiceScale: true
+    series:
+      - entity: sensor.solar_power
+        name: Solar
+        type: area
+        color: "#FFC83D"
+        opacity: 0.55
+        stroke_width: 1
+        curve: straight
+        transform: return Number(x) / 1000;
+        unit: kW
+        float_precision: 2
+        group_by:
+          func: avg
+          duration: 5min
+      - entity: sensor.house_consumption
+        name: House
+        type: area
+        color: "#7E57C2"
+        opacity: 0.4
+        stroke_width: 1
+        curve: straight
+        transform: return Number(x) / 1000;
+        unit: kW
+        float_precision: 2
+        group_by:
+          func: avg
+          duration: 5min

@@ -17,6 +17,13 @@ Each recipe is a **Template sensor helper**, created in the UI with no YAML:
 The preview under the template shows the result straight away, so you can
 check it before saving.
 
+<img src="docs/images/22-template-helper-recipe.png" alt="Template sensor form with a recipe pasted" width="420">
+
+The examples use the entity IDs of a fresh install with the default device
+name (`sensor.5_channel_energy_meter_...`). If your meter's IDs use a
+different prefix, replace `5_channel_energy_meter` with yours. A recipe
+showing **unknown** in the preview usually means an ID doesn't match.
+
 ## Which recipes do I need?
 
 | Your layout | Recipes |
@@ -83,7 +90,8 @@ Name **Grid export power** · Unit **W** · Device class **Power** · State clas
 
 ## 4. House consumption (solar)
 
-Everything the house is using: grid power plus solar generation. The solar
+Everything the house is using: grid power plus solar generation (plus
+battery discharge, if you have a battery). The solar
 sensor counts as 0 W when it is unavailable, as many inverters go offline
 overnight. Without solar, net grid power already *is* house consumption, so
 you don't need this recipe.
@@ -92,9 +100,11 @@ you don't need this recipe.
 {# Edit these #}
 {% set net = 'sensor.net_grid_power' %}
 {% set solar = 'sensor.solar_power' %}
+{% set battery = '' %}  {# optional: signed battery power, + when discharging #}
 {# No changes needed below #}
 {% if has_value(net) %}
-  {{ (states(net) | float(0) + states(solar) | float(0)) | round(0) }}
+  {% set b = states(battery) | float(0) if battery else 0 %}
+  {{ (states(net) | float(0) + states(solar) | float(0) + b) | round(0) }}
 {% else %}
   {{ none }}
 {% endif %}
@@ -105,11 +115,28 @@ Name **House consumption** · Unit **W** · Device class **Power** · State clas
 Check your solar sensor's unit. If it reports kW, use
 `states(solar) | float(0) * 1000` instead.
 
+**Battery:** set `battery` to your battery's power sensor if it is signed
+positive while discharging and negative while charging. Many inverters use
+the opposite sign; in that case use `-(states(battery) | float(0))`.
+
 ## 5. Unmetered load
 
-House consumption that isn't on a clipped circuit or a listed device. Add
-any other power-metered devices (smart plugs, a heat pump with its own power
-sensor) to the list to narrow it down further.
+House consumption that isn't measured by anything else: the clipped
+circuits, plus any smart plugs or other power-metered devices you list.
+What's left is genuinely unidentified load, useful for finding your
+always-on base load and for spotting which unmonitored appliance would be
+worth a smart plug.
+
+There are two lists:
+
+- **`metered`:** the clipped circuits. If one is unavailable, the result is
+  **unknown**.
+- **`optional`:** smart plugs and other devices with their own power sensor.
+  One that is unavailable counts as 0 W, so a plug dropping offline can't
+  blank the result.
+
+Only list devices that are **not** on a clipped circuit, or they will be
+subtracted twice.
 
 ```jinja
 {# Edit these #}
@@ -119,10 +146,16 @@ sensor) to the list to narrow it down further.
   'sensor.5_channel_energy_meter_channel_3_power',
   'sensor.5_channel_energy_meter_channel_4_power',
 ] %}
+{% set optional = [
+  'sensor.example_smart_plug_power',
+] %}
 {# No changes needed below #}
 {% set ns = namespace(total=0, ok=has_value(house)) %}
 {% for s in metered %}
   {% if not has_value(s) %}{% set ns.ok = false %}{% endif %}
+  {% set ns.total = ns.total + states(s) | float(0) %}
+{% endfor %}
+{% for s in optional %}
   {% set ns.total = ns.total + states(s) | float(0) %}
 {% endfor %}
 {{ [states(house) | float(0) - ns.total, 0] | max | round(0) if ns.ok else none }}
@@ -132,7 +165,61 @@ Name **Unmetered load** · Unit **W** · Device class **Power** · State class *
 
 Small negative values are possible when readings from different devices
 arrive at slightly different times, so the result is floored at 0 W.
-Without solar, use your net grid power sensor as `house`.
+Without solar, use your net grid power sensor as `house`. If you have no
+other metered devices, leave `optional` as an empty list: `[]`.
+
+## 6. Estimated power from an energy-only device
+
+Some appliances (many SmartThings washers, dryers and TVs, for example)
+report energy but not power. A **Derivative** helper turns the energy
+sensor into an estimated power sensor for charts. It's a visual estimate,
+not a measurement: it is only as fine as the energy updates (a washer that
+reports 0.1 kWh every 15 minutes gives 15-minute blocks of about 0.4 kW),
+and the first block of each run reads low, because the energy is spread
+back to the previous update.
+
+Settings > Devices & services > Helpers > Create helper > **Derivative
+sensor**:
+
+| Setting | Value |
+|---|---|
+| Name | for example `Washer power estimated` |
+| Input sensor | the appliance's **energy** sensor (kWh) |
+| Time window | 0 |
+| Metric prefix | none |
+| Time unit | Hours (kWh per hour comes out in **kW**) |
+
+<img src="docs/images/23-derivative-helper.png" alt="Derivative helper options: washer energy, time window 0" width="420">
+
+**Optional: drop to zero when the appliance stops.** A derivative only
+recalculates when its source changes, so after a run it can hold its last
+value until the next one. If the appliance has a state sensor (running,
+stopped), name the derivative `... power raw` instead, and create a
+Template sensor helper with the final name:
+
+```jinja
+{# Edit these #}
+{% set raw = 'sensor.washer_power_raw' %}
+{% set machine = 'sensor.washer_machine_state' %}
+{% set running = ['run', 'running', 'on'] %}
+{# No changes needed below #}
+{% if states(machine) in running %}
+  {{ [states(raw) | float(0), 0] | max | round(3) }}
+{% else %}
+  0
+{% endif %}
+```
+
+Name **Washer power estimated** · Unit **kW** · Device class **Power** · State class **Measurement**
+
+The state sensor's stored values can differ from what the UI shows (for
+example `run` displayed as "Running"); check its `options` attribute in
+Developer Tools > States and adjust `running` to match.
+
+Use these for charts only. For the Energy dashboard, keep using the
+appliance's real energy sensor, not the estimate.
+
+<!-- screenshot: docs/images/24-estimated-power-line.png (chart crop showing a dashed estimated line during a wash) -->
 
 ## Energy dashboard
 
@@ -147,4 +234,22 @@ If you listed more than one feed in recipe 1, combine each direction's
 counters with the built-in **Combine the state of several sensors** helper
 (type *Sum*), again with no template needed.
 
-For the dashboard's live power view, use recipe 1 (net grid power).
+### Live power on the Energy dashboard's **Now** tab
+
+Home Assistant's Energy settings also accept **power** sensors, which drive
+the live **Now** view. The grid's power sensor must be a single signed
+sensor (positive importing, negative exporting), which is exactly recipe 1:
+
+1. Settings > Dashboards > **Energy**, and edit your grid connection (its
+   pencil icon). Leave its energy settings as they are.
+2. Scroll to the bottom of the dialog. Under **Type of power measurement**,
+   choose **Standard** and select **Net grid power**
+   (`sensor.net_grid_power`) as the **Power measurement**. (**Two sensors**
+   takes recipes 2 and 3 instead; **Inverted** is for sensors that are
+   negative when importing.)
+3. If your solar source has a power sensor too (most inverters do), Home
+   Assistant works out live house consumption from the two.
+4. Optionally, give each circuit's individual device its channel power
+   sensor as well.
+
+Live values update at the refresh blueprint's interval.
