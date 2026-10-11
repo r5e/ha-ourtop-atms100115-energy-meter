@@ -1,7 +1,7 @@
 # Ourtop ATMS100115 5-channel Wi-Fi energy meter for Home Assistant
 
-> **Status: pre-release (v0.1.0).** Working and in daily use, but still being
-> tested from a clean install. Feedback and issue reports are welcome.
+> **Status: pre-release (v0.3.0).** Working and in daily use, clean-install tested, and
+> calibrated against billing data. Feedback and issue reports are welcome.
 
 A setup kit for the Ourtop **ATMS100115** CT clip energy meter (a Tuya Wi-Fi
 device) in Home Assistant, fully local through
@@ -55,6 +55,7 @@ blueprints here could help with it too, but that is untested.
 | `dashboard/energy_now_daily_card.yaml` | Optional daily energy bar chart by channel (built-in card) |
 | `dashboard/energy_meter_card_apexcharts.yaml` | Optional card for solar users: translucent solar and house areas with circuit lines (needs the ApexCharts card from HACS) |
 | [`RECIPES.md`](RECIPES.md) | Template recipes for net grid power, import/export, house consumption and unmetered load |
+| [`CALIBRATION.md`](CALIBRATION.md) and `tools/calibrate.py` | Optional: measure the meter's offset against your billing data, and corrected sensors that apply it |
 
 ## Why the meter needs a refresh automation
 
@@ -272,6 +273,14 @@ house consumption. Details are in [RECIPES.md](RECIPES.md#live-power-on-the-ener
   energy isn't counted twice.
 
 <img src="docs/images/21-energy-individual-device.png" alt="Adding a circuit as an individual device, with energy and power" width="420">
+
+## Calibration (optional)
+
+Compared with the retailer's billing meter, the development meter's grid channel read a constant
+14–15 W low on net power, with exact scaling. [CALIBRATION.md](CALIBRATION.md) shows how to
+measure your own meter's offset from your billing data (with `tools/calibrate.py`), and how to
+build corrected sensors that apply it alongside the raw ones. After correction, daily totals
+matched the billing data to within 0.1–0.3 %.
 
 ## Adding solar, a battery or other sources
 

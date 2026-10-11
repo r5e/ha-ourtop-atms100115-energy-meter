@@ -189,6 +189,11 @@ sensor**:
 | Metric prefix | none |
 | Time unit | Hours (kWh per hour comes out in **kW**) |
 
+**Check the entity IDs.** If you attach a helper to a device while creating
+it, Home Assistant may prefix its entity ID with the device's name (for
+example `sensor.laundry_washer_washer_power_raw`). Check the real IDs in
+Settings > Entities, and use them in the template below and in your card.
+
 <img src="docs/images/23-derivative-helper.png" alt="Derivative helper options: washer energy, time window 0" width="420">
 
 **Optional: drop to zero when the appliance stops.** A derivative only
@@ -216,10 +221,45 @@ The state sensor's stored values can differ from what the UI shows (for
 example `run` displayed as "Running"); check its `options` attribute in
 Developer Tools > States and adjust `running` to match.
 
+**Late reports:** some devices deliver their energy late, sometimes only
+after the run has finished. With the stop gating, the estimate then shows
+nothing for that run, although the energy total is still correct.
+
 Use these for charts only. For the Energy dashboard, keep using the
 appliance's real energy sensor, not the estimate.
 
-<!-- screenshot: docs/images/24-estimated-power-line.png (chart crop showing a dashed estimated line during a wash) -->
+<img src="docs/images/24-estimated-power-line.png" alt="Chart with the washer's estimated power as a dashed line, in 15-minute blocks" width="700">
+
+### Variant: devices that report energy per window
+
+Some devices don't report a running total at all, only the energy used in
+each reporting window (for example, a Samsung TV's 15-minute
+`deltaEnergy` windows). Check the energy sensor's history: a running total
+only ever climbs, while per-window energy goes up and down. For per-window
+energy, skip the Derivative: power is the window's energy divided by its
+length. If the sensor has `start` and `end` attributes for the window, a
+Template sensor helper can work it out exactly:
+
+```jinja
+{# Edit this: the per-window energy sensor (Wh) #}
+{% set w = 'sensor.tv_energy_window' %}
+{# No changes needed below #}
+{% set s = state_attr(w, 'start') %}
+{% set e = state_attr(w, 'end') %}
+{% if has_value(w) and s and e %}
+  {% set h = (as_datetime(e) - as_datetime(s)).total_seconds() / 3600 %}
+  {{ (states(w) | float(0) / h / 1000) | round(3) if h > 0 else none }}
+{% else %}
+  {{ none }}
+{% endif %}
+```
+
+Unit **kW** · Device class **Power** · State class **Measurement**
+
+Without `start` and `end` attributes, use the window length you see in the
+history instead: for 15-minute windows in Wh,
+`{{ (states(w) | float(0) * 4 / 1000) | round(3) }}`. The line lags real
+time by up to a window, as each window is only reported after it ends.
 
 ## Energy dashboard
 
