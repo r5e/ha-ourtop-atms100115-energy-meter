@@ -1,7 +1,7 @@
 # Ourtop ATMS100115 5-channel Wi-Fi energy meter for Home Assistant
 
-> **Status: pre-release (v0.3.0).** Working and in daily use, clean-install tested, and
-> calibrated against billing data. Feedback and issue reports are welcome.
+> **Version 1.0.0.** In daily use since October 2026, clean-install tested, and calibrated
+> against billing data. Feedback and issue reports are welcome.
 
 A setup kit for the Ourtop **ATMS100115** CT clip energy meter (a Tuya Wi-Fi
 device) in Home Assistant, fully local through
@@ -276,11 +276,11 @@ house consumption. Details are in [RECIPES.md](RECIPES.md#live-power-on-the-ener
 
 ## Calibration (optional)
 
-Compared with the retailer's billing meter, the development meter's grid channel read a constant
-14–15 W low on net power, with exact scaling. [CALIBRATION.md](CALIBRATION.md) shows how to
+Compared with the retailer's billing meter, the development meter's grid channel read about
+10–15 W low on net power on average (varying from day to day), with exact scaling. [CALIBRATION.md](CALIBRATION.md) shows how to
 measure your own meter's offset from your billing data (with `tools/calibrate.py`), and how to
-build corrected sensors that apply it alongside the raw ones. After correction, daily totals
-matched the billing data to within 0.1–0.3 %.
+build corrected sensors that apply it alongside the raw ones. After correction, totals over
+11 days matched the billing data to within about 0.5 %.
 
 ## Adding solar, a battery or other sources
 
@@ -438,7 +438,9 @@ layout, hide the totals and use the recipes instead.
 
 On a single-phase supply with a whole-house clip and three circuit clips:
 
-- **1-minute standard interval:** run for several days without gaps.
+- **1-minute standard interval:** in continuous use for three weeks and more. Occasional
+  short Wi-Fi dropouts (about one a fortnight) were caught and fixed automatically by the
+  recovery blueprint.
 - **30-second interval:** run overnight with no missed readings.
 - **15-second high-res periods:** working over short test periods.
 - **Recovery blueprint:** tested end to end (stale detection, reload, alert,

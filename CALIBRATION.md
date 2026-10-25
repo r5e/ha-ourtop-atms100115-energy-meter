@@ -6,14 +6,20 @@ work out costs from it.
 
 ## What to expect
 
-On the meter this kit was developed on, the grid channel's signed net power read a **constant
-14–15 W low** compared with the retailer's billing meter: 14 W too little import, and 14 W too
-much export, at every load from 350 W to 3 kW. The scaling was exact (a slope of 1.00 against the
-billing data). That's a fixed zero offset in the meter, so the correction is simply to add the
-offset to net power.
+On the meter this kit was developed on, the grid channel's signed net power read **low** compared
+with the retailer's billing meter: too little import and too much export by about the same
+amount, at every load from 350 W to 3 kW. The scaling was exact (a slope of 1.00 against the
+billing data), so the correction is simply to add an offset to net power.
 
-In watts it's small, but it adds up to about 0.3 kWh a day, and at low overnight loads it's a 4 %
-error. After correction, daily totals matched the billing data to within 0.1–0.3 %.
+- **A typical hour** was 14–15 W low.
+- **Day to day,** the average varied: from about 0 W to over 30 W, and about 10 W on average
+  over two and a half weeks. Sunny days with lots of export tended to show less; dull days more.
+  Most of the variation came from occasional hours of rapid switching between import and export,
+  where the two meters disagreed strongly.
+
+In watts it's small, but 10–15 W adds up to 0.25–0.35 kWh a day, and at low overnight loads it's a
+4 % error. With a 14 W correction, totals over 11 days matched the billing data to within
++0.4 % (import) and −0.6 % (export).
 
 Your meter may have a different offset, or none. This guide measures it.
 
@@ -21,7 +27,8 @@ Your meter may have a different offset, or none. This guide measures it.
 
 - A grid clip (the channel on your main feed), and [recipe 1](RECIPES.md#1-net-grid-power)
   (net grid power) set up.
-- **Three or more days of interval data from your billing meter**, hourly if possible
+- **Two weeks or more of interval data from your billing meter** (three days gives a first
+  estimate, but the offset varies from day to day), hourly if possible
   (30-minute data also works): energy imported and exported in each interval. Retailers and
   distributors usually offer this as a download from their customer portal (in Australia,
   often as NEM12 data). If your retailer has a Home Assistant integration that records hourly
@@ -75,15 +82,27 @@ Net gap, all hours:    median   14.8 W   mean   13.0 W
 Import-only hours (67): median gap   14.0 W; fit: bill = 14.5 W + 0.9979 x CT
 Export-only hours (13): median   16.1 W (CT export minus bill export)
 
-Suggested offset: 15 W (add to net grid power; positive means the CT reads too little import / too much export)
+Per day (days with at least 20 usable hours):
+  2026-10-05  mean gap    5.6 W  (22 h)
+  2026-10-06  mean gap   34.4 W  (21 h)
+  2026-10-07  mean gap    8.9 W  (23 h)
+  2026-10-08  mean gap   17.1 W  (24 h)
+  2026-10-10  mean gap    0.9 W  (24 h)
+  Day-to-day spread: 0.9 to 34.4 W (standard deviation 11.8 W)
+  The offset can vary from day to day; two weeks or more gives a steadier figure.
+
+Suggested offset: 13 W (add to net grid power; positive means the CT reads too little import / too much export)
+  This is the mean over all usable hours, which is what makes energy totals match.
+  The median (15 W) shows a typical hour; a big difference between the two
+  means a few hours (often rapid import/export switching) disagree strongly.
 ```
 
 **What it does:** for each interval, it reads the counters at the exact interval boundaries by
 interpolating between the readings either side, compares the net energy (import minus export)
 with the billing meter's, and converts the difference to watts. It skips intervals with gaps in
-the readings. The **median** across all intervals is the suggested offset, so an occasional odd
-hour (for example during rapid switching between import and export on a cloudy day) doesn't
-move it.
+the readings. The suggested offset is the **mean** across all intervals, because that's what
+makes the energy totals match your bill; the median shows what a typical hour looks like. It
+also shows each day's average, so you can see how much the offset moves from day to day.
 
 **Reading the result:**
 
@@ -92,7 +111,9 @@ move it.
 - **A slope noticeably different from 1** (the script warns above 1 %): the meter also has a
   scaling error, which an offset alone won't fix. Check the clip is fully closed and sits on the
   right conductor before anything else.
-- **A median within a few watts of 0:** no calibration needed.
+- **A mean within a few watts of 0:** no calibration needed.
+- **Large day-to-day spread:** normal for this meter; measure over a longer period, or use a
+  sensor that measures the offset continuously (the `external` input in step 4).
 
 ## Step 4: create the corrected sensors
 
@@ -125,6 +146,14 @@ State class **Measurement**
 All the corrected sensors read this one value, so you change the offset in one place. The
 `external` input is for an integration that measures the offset itself from your billing data;
 until it has a value, the measured figure is used.
+
+**Amber Energy Dashboard users:** map the meter's **raw** grid counters under Amber's grid meter
+(never the corrected sensors), and Amber measures the offset continuously as a rolling 14-day
+mean. Set `external` to its calibration sensor, named "*<your meter name>* Calibration offset".
+Check its actual entity ID in Developer Tools > States (for example
+`sensor.grid_meter_calibration_offset`), as it depends on the meter's name and can be renamed.
+It shows unknown until it has a day of complete billed hours; your measured value is used until
+then.
 
 ### 2. Net grid power corrected
 
@@ -241,16 +270,17 @@ offset should come out close to 0 W. On the development meter, the first full da
 | Import, import-only hours | 11.087 kWh | 10.885 kWh | 11.107 kWh |
 | Median hourly gap, import-only hours | – | 14.1 W | 0.4 W |
 
-Repeat the measurement every few months, or after moving a clip.
+Day-to-day differences of up to about 1 % are normal (see *What to expect*); judge it over a week
+or more. Repeat the measurement every few months, or after moving a clip.
 
 ## Limitations
 
 - **Counter step:** the meter's counters move in 0.01 kWh steps, so a single hour is only good to
   about ±0.01 kWh. The median over days is far more precise.
-- **Cloudy days:** in hours with rapid switching between import and export, the CT and the
-  billing meter can split the flow between directions differently, and occasionally the net
-  disagrees too (one hour on the development meter was out by 0.32 kWh). The median ignores
-  such hours, but they show up in hourly comparisons.
+- **The offset isn't perfectly constant:** in hours with rapid switching between import and
+  export, the CT and the billing meter can disagree strongly (one hour on the development meter
+  was out by 0.32 kWh). These hours make the daily offset vary, by up to about ±15 W from the
+  average. A fixed correction is right on average, not every day.
 - **Circuits aren't corrected:** the offset is measured on the grid channel, where there's a
   billing meter to compare against. Other channels have no reference.
 - **Outages:** the corrected sensors lose at most the offset per hour of Home Assistant

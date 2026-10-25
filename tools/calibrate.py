@@ -144,9 +144,26 @@ def main():
     if len(exp_only) >= 3:
         print(f"Export-only hours ({len(exp_only)}): median {statistics.median(h[4] * 1000 - h[2] * 1000 for h in exp_only):6.1f} W"
               " (CT export minus bill export)")
+    days = {}
+    for h in hours:
+        days.setdefault(h[0].date(), []).append(h[5])
+    full = {d: g for d, g in days.items() if len(g) >= 20}
+    if len(full) >= 2:
+        print()
+        print("Per day (days with at least 20 usable hours):")
+        for d, g in sorted(full.items()):
+            print(f"  {d}  mean gap {statistics.mean(g):6.1f} W  ({len(g)} h)")
+        means = [statistics.mean(g) for g in full.values()]
+        print(f"  Day-to-day spread: {min(means):.1f} to {max(means):.1f} W"
+              f" (standard deviation {statistics.pstdev(means):.1f} W)")
+        if len(full) < 14:
+            print("  The offset can vary from day to day; two weeks or more gives a steadier figure.")
     print()
-    print(f"Suggested offset: {statistics.median(gaps):.0f} W"
+    print(f"Suggested offset: {statistics.mean(gaps):.0f} W"
           " (add to net grid power; positive means the CT reads too little import / too much export)")
+    print("  This is the mean over all usable hours, which is what makes energy totals match.")
+    print(f"  The median ({statistics.median(gaps):.0f} W) shows a typical hour; a big difference between the two")
+    print("  means a few hours (often rapid import/export switching) disagree strongly.")
 
 
 if __name__ == "__main__":
